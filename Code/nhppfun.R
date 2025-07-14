@@ -376,6 +376,54 @@ calMISE = function(fun, funhat.lst, interval)
   return(mean(ISE.vec))
 }
 
+vec2fun = function(x, interval, lambda.vec)
+{
+  # convert vector to function by interpolation
+  # Input:
+  #         x: a scalar/vector that is used to evaluate the function
+  #         interval: a vector of length 2 specifying the support of the vector
+  #         lambda.vec: a vector supported on interval
+  # Output:
+  #         a scalar/vector of the function value evaluated at x
+  ndim = length(lambda.vec)
+  t.vec = seq(interval[1], interval[2], length.out = ndim)
+  fx = approx(t.vec, lambda.vec, x)$y
+  return(fx)
+}
+
+Lambda = function(lambda.fun = NULL, t1, t2, lambda.vec = NULL, usefun = T)
+{
+  # calculate Lambda function (definite integral of lambda.fun)
+  # Input:
+  #         lambda.fun: intensity function of the NHPP
+  #         t1: a scalar, starting point for numerical integration
+  #         t2: a scalar, ending point for numerical integration
+  #         lambda.vec: a vectorized intensity function, note, this argument is crucial for nhppmle() and nhpplike()
+  #         usefun, a Boolean scalar, whether use lambda.fun or lambda.vec to do numerical integration
+  # Output:
+  #         a scalar of the integration
+  if (usefun)
+  {
+    integ = integrate(Vectorize(lambda.fun), lower = t1, upper = t2, stop.on.error = F)
+    if (integ$message == "maximum number of subdivisions reached") # when integrate() fails, do self calculation
+    {
+      delta.vec = seq(t1, t2, length.out = ngrid + 1)
+      lambdafun.vec = lambda.fun(delta.vec)
+      integval = (t2 - t1) / ngrid * (sum(lambdafun.vec[-c(1, ngrid + 1)]) + lambdafun.vec[1] / 2 + lambdafun.vec[ngrid + 1] / 2)
+    } else
+    {
+      integval = integ$value
+    }
+  } else
+  {
+    t.vec = seq(t1, t2, length.out = length(lambda.vec))
+    delta.vec = seq(t1, t2, length.out = ngrid + 1)
+    lambdafun.vec = approx(t.vec, lambda.vec, delta.vec)$y
+    integval = (t2 - t1) / ngrid * (sum(lambdafun.vec[-c(1, ngrid + 1)]) + lambdafun.vec[1] / 2 + lambdafun.vec[ngrid + 1] / 2)
+  }
+  return(integval)
+}
+
 nhppcdf = function(x, TT, lambda.fun)
 {
   # evaluate interarrival time CDF on a given x for an NHPP
