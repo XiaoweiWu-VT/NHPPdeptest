@@ -1,11 +1,15 @@
-# This code is for calculating type I error of simulation 2 (single path)
+# This code is for calculating power of simulation 2 (single path)
 # The simulation is for Scenarios IV, V, and VI
-# nohup R CMD BATCH --no-save --no-restore '--args scen="IV"' simu2h0server.R logIV.out > lIV&
+# nohup R CMD BATCH --no-save --no-restore '--args scen="I" rho=0' simu2haserver.R logI0.out > lI0&
 
 args = (commandArgs(T))
 eval(parse(text = args[[1]]))
+eval(parse(text = args[[2]]))
 library(gtools) # used in nhppmle
 library(dtt) # used in nhppmle
+library(mvtnorm)
+library(binaryLogic)
+library(splines)
 library(foreach)
 library(doParallel)
 library(doRNG)
@@ -19,17 +23,16 @@ resultpath = paste0(workpath, "/Result")
 
 interval = c(0, 1000)
 nrep = 1000
+p = 0.5
 
 lb = NA; ub = NA; a = NA
-if (scen == "IV")
+if (scen == "I")
 {
   set.seed(0)
-  lambda1.fun = function(t) {(0.5 * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + 0.5)}
-  dim11 = 64; dim12 = 2
-  lambda2.fun = lambda1.fun
-  dim21 = 64; dim22 = 2
+  lambda.fun = function(t) {(0.5 * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + 0.5)}
+  dim1 = 64; dim2 = 2
 }
-if (scen == "V")
+if (scen == "II")
 {
   set.seed(0)
   a = runif(4, -2, 2)
@@ -39,43 +42,42 @@ if (scen == "V")
   }
   lb = lambda.fun0(0)
   ub = optimize(lambda.fun0, interval, maximum = T)$objective
-  lambda1.fun = function(t)
+  lambda.fun = function(t)
   {
     ((a[1] + a[2] * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + a[3] * cos(2 * pi * 3 * t / (interval[2] - interval[1])) + a[4] * cos(2 * pi * 4 * t / (interval[2] - interval[1]))) - lb) / (ub - lb)
   }
-  dim11 = 32; dim12 = 4
-  lambda2.fun = lambda1.fun
-  dim21 = 32; dim22 = 4
+  dim1 = 32; dim2 = 4
 }
-if (scen == "VI")
+if (scen == "III")
 {
-  set.seed(0)
-  lambda1.fun = function(t) {(0.5 * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + 0.5)}
-  dim11 = 64; dim12 = 2
-  a = runif(4, -2, 2)
-  lambda.fun0 = function(t)
-  {
-    a[1] + a[2] * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + a[3] * cos(2 * pi * 3 * t / (interval[2] - interval[1])) + a[4] * cos(2 * pi * 4 * t / (interval[2] - interval[1]))
-  }
-  lb = lambda.fun0(0)
+  set.seed(2)
+  a = c(runif(1, 0, 4), runif(1, -2, 0))
+  lambda.fun0 = function(t) {a[1] * cos(2 * pi * 1.5 * t / (interval[2] - interval[1])) + a[2] * cos(2 * pi * 2 * t / (interval[2] - interval[1]))}
+  lb = lambda.fun0(1000)
   ub = optimize(lambda.fun0, interval, maximum = T)$objective
-  lambda2.fun = function(t)
+  lambda.fun1 = function(t)
   {
-    ((a[1] + a[2] * cos(2 * pi * 2 * t / (interval[2] - interval[1])) + a[3] * cos(2 * pi * 3 * t / (interval[2] - interval[1])) + a[4] * cos(2 * pi * 4 * t / (interval[2] - interval[1]))) - lb) / (ub - lb)
+    ((a[1] * cos(2 * pi * 1.5 * t / (interval[2] - interval[1])) + a[2] * cos(2 * pi * 2 * t / (interval[2] - interval[1]))) - lb) / (ub - lb)
   }
-  dim21 = 32; dim22 = 4
+  degree = 6
+  x.vec = seq(interval[1], interval[2], length.out = ngrid)
+  basis.mat = bs(x.vec, degree = degree, intercept = T)
+  y.vec = lambda.fun1(x.vec)
+  bsm = lm(y.vec ~ 0 + basis.mat)
+  c.vec = coef(bsm)
+  lambda.fun = function(x) {vec2fun(x, interval, as.vector(basis.mat %*% c.vec))}
+  dim1 = 32; dim2 = 3
 }
 
-outfile = paste0(resultpath, "/simu2h0_scen", scen, ".RData")
-res = foreach(i = 1 : nrep, .packages = c('gtools', 'dtt')) %dorng%
+outfile = paste0(resultpath, "/simu2ha_scen", scen, "_rho_", rho, ".RData")
+res = foreach(i = 1 : nrep, .packages = c('gtools', 'dtt', 'mvtnorm', 'binaryLogic', 'splines')) %dorng%
 {
-  temp1 = nhppSP(interval, lambda1.fun)
-  arrtime1.vec = temp1$S.nhpp
-  runt1 = system.time({lambda1.hat = nhppmle(interval, arrtime1.vec, dim11, dim12)})
+  temp = nhpp2SPfilter(interval, lambda.fun, p, rho)
+  arrtime1.vec = temp$S1
+  runt1 = system.time({lambda1.hat = nhppmle(interval, arrtime1.vec, dim1, dim2)})
   runt2 = system.time({pval1 = nhppGoF(interval, lambda1.hat, arrtime1.vec)})
-  temp2 = nhppSP(interval, lambda2.fun)
-  arrtime2.vec = temp2$S.nhpp
-  runt3 = system.time({lambda2.hat = nhppmle(interval, arrtime2.vec, dim21, dim22)})
+  arrtime2.vec = temp$S2
+  runt3 = system.time({lambda2.hat = nhppmle(interval, arrtime2.vec, dim1, dim2)})
   runt4 = system.time({pval2 = nhppGoF(interval, lambda2.hat, arrtime2.vec)})
   arrtime.vec = sort(c(arrtime1.vec, arrtime2.vec))
   lambda.hat = function(t)
