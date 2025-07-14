@@ -1,13 +1,13 @@
 A statistical method to test for dependence between nonhomogeneous Poisson processes, which can be applied to detect interactions between transcription factors based on ChIP-seq data. This website contains the complete source code (including both simulation and real data analysis) and datasets (including all simulated and demo data), as listed in the following table:
 
-Content                                   Code	            Data
-                                          nhppfun.R
-Demo (for Figure 1 and Figure 2)          drawfig1&2.R      demo_arrtime.RData
+Content                                 |  Code	            Data
+                                        |  nhppfun.R
+Demo (for Figure 1 and Figure 2)        |  drawfig1&2.R      demo_arrtime.RData
                                                             demo_intensity.RData
                                                             demo_intensityestimate.RData
                                                             demo_intarrtime.RData
                                                             demo_cdfintarrtime.RData
-Simulation 1 (for Table 1 and Table 2)    maketab1&2.R      simu1_arrtime_scenI_npath1.RData
+Simulation 1 (for Table 1 and Table 2)  |  maketab1&2.R      simu1_arrtime_scenI_npath1.RData
                                                             simu1_arrtime_scenII_npath1.RData
                                                             simu1_arrtime_scenIII_npath1.RData
                                                             simu1_arrtime_scenI_npath5.RData
